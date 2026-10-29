@@ -40,11 +40,44 @@ class RestartRequiredFixFlow(RepairsFlow):
         if issue is not None and issue.translation_placeholders:
             name = issue.translation_placeholders.get("name", "")
 
+        running = _running_automations(self.hass)
+        if running:
+            return self.async_show_form(
+                step_id="confirm_restart_interrupted",
+                data_schema=probatio.Schema({}),
+                description_placeholders={
+                    "name": name,
+                    "running_automations": "\n".join(
+                        f"- {entity}" for entity in running
+                    ),
+                },
+            )
+
         return self.async_show_form(
             step_id="confirm_restart",
             data_schema=probatio.Schema({}),
             description_placeholders={"name": name},
         )
+
+    async def async_step_confirm_restart_interrupted(
+        self, user_input: dict[str, str] | None = None
+    ) -> RepairsFlowResult:
+        """Handle the confirm step when automations are running."""
+        return await self.async_step_confirm_restart(user_input)
+
+
+def _running_automations(hass: HomeAssistant) -> list[str]:
+    """Return the automations and scripts that are running now.
+
+    A running automation or script has a truthy "current" attribute,
+    the same check the frontend restart dialog uses.
+    """
+    return [
+        state.attributes.get("friendly_name") or state.entity_id
+        for state in hass.states.async_all()
+        if state.domain in ("automation", "script")
+        and state.attributes.get("current")
+    ]
 
 
 class CriticalRepositoryFixFlow(RepairsFlow):

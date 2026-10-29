@@ -123,6 +123,88 @@ async def test_restart_required_fix_flow_while_unloaded(
     assert data["description_placeholders"] == {"name": "Basic integration"}
 
 
+async def test_restart_required_fix_flow_lists_running_automations(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    issue_registry: ir.IssueRegistry,
+    marketplace: MarketplaceManager,
+) -> None:
+    """Test the repair lists what a restart will interrupt."""
+    assert await async_setup_component(hass, "repairs", {})
+    restarts = async_mock_service(hass, "homeassistant", "restart")
+
+    hass.states.async_set(
+        "automation.morning_routine",
+        "on",
+        {"friendly_name": "Morning routine", "current": 2},
+    )
+    hass.states.async_set(
+        "script.notify_me",
+        "on",
+        {"friendly_name": "Notify me", "current": 1},
+    )
+    # Not running: without a truthy "current" attribute it is not listed
+    hass.states.async_set(
+        "automation.idle", "on", {"friendly_name": "Idle automation"}
+    )
+
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_ID,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="restart_required",
+        translation_placeholders={"name": "Basic integration"},
+    )
+
+    client = await hass_client()
+    data = await start_repair_fix_flow(client, DOMAIN, ISSUE_ID)
+
+    assert data["step_id"] == "confirm_restart_interrupted"
+    assert data["description_placeholders"] == {
+        "name": "Basic integration",
+        "running_automations": "- Morning routine\n- Notify me",
+    }
+
+    data = await process_repair_fix_flow(client, data["flow_id"])
+
+    assert data["type"] == "create_entry"
+    assert len(restarts) == 1
+    assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID) is None
+
+
+async def test_restart_required_fix_flow_without_friendly_names(
+    hass: HomeAssistant,
+    hass_client: ClientSessionGenerator,
+    marketplace: MarketplaceManager,
+) -> None:
+    """Test running automations without a name fall back to the entity id."""
+    assert await async_setup_component(hass, "repairs", {})
+    issue_id = "restart_required_0_1.0.0"
+
+    hass.states.async_set("automation.nameless", "on", {"current": 3})
+
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="restart_required",
+        translation_placeholders={"name": "Unknown integration"},
+    )
+
+    client = await hass_client()
+    data = await start_repair_fix_flow(client, DOMAIN, issue_id)
+
+    assert data["step_id"] == "confirm_restart_interrupted"
+    assert data["description_placeholders"] == {
+        "name": "Unknown integration",
+        "running_automations": "- automation.nameless",
+    }
+
+
 async def test_removal_the_catalog_takes_back(
     hass: HomeAssistant,
     marketplace: MarketplaceManager,

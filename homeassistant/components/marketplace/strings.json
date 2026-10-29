@@ -362,6 +362,11 @@
             "description": "Restart Home Assistant to finish installing or updating {name}.",
             "submit": "[%key:common::action::restart%]",
             "title": "Restart required for {name}"
+          },
+          "confirm_restart_interrupted": {
+            "description": "Restart Home Assistant to finish installing or updating {name}. These automations and scripts are running and will be interrupted:\n\n{running_automations}",
+            "submit": "[%key:common::action::restart%]",
+            "title": "Restart required for {name}"
           }
         }
       },
@@ -372,6 +377,11 @@
         "step": {
           "confirm_restart": {
             "description": "Restart Home Assistant to finish uninstalling {name}. It is not fully removed until then.",
+            "submit": "[%key:common::action::restart%]",
+            "title": "Restart required for {name}"
+          },
+          "confirm_restart_interrupted": {
+            "description": "Restart Home Assistant to finish uninstalling {name}. It is not fully removed until then. These automations and scripts are running and will be interrupted:\n\n{running_automations}",
             "submit": "[%key:common::action::restart%]",
             "title": "Restart required for {name}"
           }
